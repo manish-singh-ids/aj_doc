@@ -124,6 +124,10 @@ Each row in the grid represents an open item and includes the following fields:
 
 ### V. **Dropdown List Retrieval Logic**
 
+GET https://twdev.repfabric.com/rfnextgenapi/api/v1/open-items/stage-dropdown/opportunity/34
+GET https://twdev.repfabric.com/rfnextgenapi/api/v1/open-items/stage-dropdown/job
+GET https://twdev.repfabric.com/rfnextgenapi/api/v1/open-items/stage-dropdown/quote
+
 #### **Tables Involved**
 - *(Table: DATA_OPTIONS)* (For Quote stages)
 - *(Table: JOB_ACTIVITIES_MST)* (For Job stages)
