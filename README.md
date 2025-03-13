@@ -1,11 +1,10 @@
 # I. AJ Related Open-Items Grid
 
-Main Api for OpenItems - 
+Main API for Open Items:
 POST https://twdev.repfabric.com/rfnextgenapi/api/v1/open-items
 
-Request Body Example : 
-
-```
+### Request Body Example:
+```json
 {
     "pagination": {
         "page": 1,
@@ -18,16 +17,21 @@ Request Body Example :
     },
     "columnFilters": {
         "items": [
-            {
-                "field": "type",
-                "operator": "contains",
-                "value": "op"
-            },
-            {
-                "field": "customer",
-                "operator": "contains",
-                "value": "ww"
-            }
+           // {
+            //     "field": "type",
+            //     "operator": "contains",
+            //     "value": "o"
+            // },
+            // {
+            //     "field": "topic",
+            //     "operator": "contains",
+            //     "value": "68"
+            // },
+            //  {
+            //     "field": "topic",
+            //     "operator": "isAnyOf",
+            //     "value": ["newssd","test"]
+            // }
         ],
         "logicOperator": "OR",
         "quickFilterValues": ["A"], //Optional Search; Use when you want to search in the result which is filtered by column Already Or Make a global search without ColumFilter (Both Works)
@@ -48,75 +52,65 @@ Request Body Example :
 
 ```
 
-
 ## Requirements
-
 For detailed task requirements, refer to the following link:  
 [Task 15271](https://pms.indeadesignsystems.com/task_management/tasks/15271)
 
 ## Overview
-
 The AJ Related Open-Items should be displayed together in a grid format. The grid includes the following record types:
-
 - **Opportunity**
 - **Job**
 - **Quote**
 
-<hr>
+---
 
 ## II. Grid Functionality
-
 Each row in the grid represents an open item and includes the following fields:
 
 | Field       | Editable | Opportunity | Job | Quote |
 |------------|----------|------------|-----|-------|
 | `topic`     | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes |
-| `customer`  | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes |
-| `distributor` | ✅ Yes | ✅ Yes | ❌ No | ✅ Yes |
+| `distributor` | ❌ No | ✅ Yes | ❌ No | ✅ Yes |
 | `stage`     | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes |
 | `value`     | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes |
 | `type`      | ❌ No | ✅ Yes | ✅ Yes | ✅ Yes |
 
 ### Editing Behavior
 - Inline editing is supported for individual fields.
-- All fields except `type` are editable.
+- All fields except `type` & `distributor` are editable.
 - `type` is a hardcoded string to determine the type (hence, no edits).
 - The `stage` field provides a dropdown menu for users to select from available options, updating only the respective row.
 - **Job** - The `distributor` field is not available and will be `NULL` by default (hence, no edits).
 
-<hr>
+---
 
 ## III. Functionalities
 - The data is retrieved based on the POST request body.
-- Open-Items data is fetched using `AJ_DTL_ID` from *(Table: AJ_LINKS)*.
-- The *(Table: AJ_LINKS)* contains the `AJ_LINK_ID` column, which maps to different tables:
+- Open-Items data is fetched using `principalId` and `customerId` from *(Table: Opportunities, Job_Related_Comps, Quotes_Hdr)*.
+- The *(Table: Job_Related_Comps)* contains the `JOB_RELT_COM_ID` column, which is `principalId` and also `customerId`. Using these two IDs, we can get Job IDs.
   - **Opportunity** *(Table: OPPORTUNITIES)*: Mapped using `OPP_ID`
   - **Job** *(Table: JOBS)*: Mapped using `JOB_ID`
   - **Quote** *(Table: QUOTE_HDR)*: Mapped using `REC_ID`
--  The total number of unique tables used in these queries is **8**. Here’s the list:
-    - **AJ_LINKS**
+- The total number of unique tables used in these queries is **8**. Here’s the list:
     - **OPPORTUNITIES**
     - **COMPANIES**
     - **OPP_ACTIVITIES_MST**
+    - **JOB_RELT_COM_ID**
     - **JOBS**
     - **JOB_ACTIVITIES_MST**
     - **QUOTES_HDR**
-	- **DATA_OPTIONS**
+    - **DATA_OPTIONS**
 
-Each query uses a combination of these tables:
-
-- **Opportunity Query** uses: `AJ_LINKS`, `OPPORTUNITIES`, `COMPANIES` (twice as C and C1), `OPP_ACTIVITIES_MST` (twice as OAM and OAM_Fallback_Default).
-- **Job Query** uses: `AJ_LINKS`, `JOBS`, `COMPANIES`, `JOB_ACTIVITIES_MST`.
-- **Quote Query** uses: `AJ_LINKS`, `QUOTES_HDR`, `COMPANIES` (twice as C and C1), `DATA_OPTIONS`.
-
-<hr>
+---
 
 ### IV. **Stage Logic**
 
 #### **Opportunity Stage**
 - The stage is retrieved from *(Table: OPP_ACTIVITIES_MST)*.
 - It tries to match the opportunity's activity (`OP.OPP_ACTIVITY`) with `OAM.ACT_NAME`, but it also considers the **principal ID** (`OP.OPP_PRINCIPAL = OAM.ACT_COMP_ID`).
-- If no match is found, a **fallback** is used (`OAM_Fallback_Default`), where the `ACT_COMP_ID` is **0**.
+- If no match is found, two fallback mechanisms are used:
+  1. **Fallback 1**: Matches the activity (`OP.OPP_ACTIVITY`) but without the principal ID constraint (`OAM_Fallback.ACT_COMP_ID = 0`).
+  2. **Fallback 2**: If the first fallback does not find a match, it selects the first available record where `ACT_COMP_ID = 0`, ordered by `REC_ID ASC` (`OAM_Fallback_Default`).
 
 #### **Job Stage**
 - The stage is retrieved from *(Table: JOB_ACTIVITIES_MST)*.
@@ -126,7 +120,7 @@ Each query uses a combination of these tables:
 - The stage is retrieved from *(Table: DATA_OPTIONS)*.
 - It matches `Q.QUOT_DELIV_STATUS` with `D.REC_ID`.
 
-<hr>
+---
 
 ### V. **Dropdown List Retrieval Logic**
 
@@ -152,22 +146,19 @@ Each query uses a combination of these tables:
 - If `gridName = OPPORTUNITY` but `principalId` is missing, it also returns a **Bad Request** error.
 - If an unexpected error occurs, it returns an **Internal Server Error**.
 
-<hr>
+---
 
 ### VI. **Updating Fields (Inline Edit)**
 
-update API 
+Update API:
 PATCH https://twdev.repfabric.com/rfnextgenapi/api/v1/open-items
 
-request Body Example 
-
-```
+#### Request Body Example:
+```json
 {
     "id": 22,
     "type": "Opportunity",
     "topic": "aaa-U1",
-    "customer": "Synccustomer-U1",
-    "customerId": 35,
     "distributor": "Syncdistributor-U2",
     "distributorId": 36,
     "stage": {
@@ -178,23 +169,11 @@ request Body Example
 }
 ```
 
-
-#### **Opportunity Update**
-- **Tables Involved**: *(Table: OPPORTUNITIES)*, *(Table: COMPANIES)*, *(Table: OPP_ACTIVITIES_MST)*.
-- **Stage Update Logic**: Updates `OPP_ACTIVITY`.
-
-#### **Job Update**
-- **Tables Involved**: *(Table: JOBS)*, *(Table: COMPANIES)*, *(Table: JOB_ACTIVITIES_MST)*.
-- **Stage Update Logic**: Updates `JOB_ACTIVITY`.
-
-#### **Quote Update**
-- **Tables Involved**: *(Table: QUOTES_HDR)*, *(Table: COMPANIES)*, *(Table: DATA_OPTIONS)*.
-- **Stage Update Logic**: Updates `QUOT_DELIV_STATUS`.
-
 ---
 
-
-
-
-
+After any PATCH update, the following GET API must be called to update various tables:
+```
+https://twdev.repfabric.com/rf_api/activityActionHandler.php?opp_id=${id}&user_id=${userId}
+```
+---
 
